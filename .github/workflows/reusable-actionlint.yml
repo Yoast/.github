@@ -1,0 +1,41 @@
+name: GH Actions Lint
+
+on:
+  workflow_call:
+    inputs:
+      shellcheck:
+        description: 'Whether to enable shellcheck. Defaults to enabled.'
+        type: boolean
+        required: false
+        default: true
+      pyflakes:
+        description: 'Whether to enable pyflakes. Defaults to enabled.'
+        type: boolean
+        required: false
+        default: true
+      args:
+        description: 'Command line arguments to pass to the actionlint command.'
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  actionlint:
+    name: 'Actionlint'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Add problem matcher
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          curl -o actionlint-matcher.json https://raw.githubusercontent.com/rhysd/actionlint/main/.github/actionlint-matcher.json
+          echo "::add-matcher::actionlint-matcher.json"
+
+      - name: Check workflow files
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color ${{ inputs.args }} ${{ inputs.shellcheck == false && '-shellcheck=' || '' }} ${{ inputs.pyflakes == false && '-pyflakes=' || '' }}
