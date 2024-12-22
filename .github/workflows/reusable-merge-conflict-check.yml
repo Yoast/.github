@@ -45,7 +45,7 @@ jobs:
             try {
               await github.rest.issues.createLabel({
                 ...context.repo,
-                name: ${{ inputs.dirtyLabel }}
+                name: "${{ inputs.dirtyLabel }}"
               });
             } catch(e) {
               // Ignore if labels exist already.
