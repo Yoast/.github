@@ -1,0 +1,61 @@
+name: Check PRs for merge conflicts
+
+on:
+  workflow_call:
+    # Note: the following inputs from the eps1lon/actions-label-merge-conflict
+    # action runner are not made available as inputs for end-user workflows at this time.
+    # - repoToken: set to secrets.GITHUB_TOKEN, which should be fine in all cases (except forks).
+    # - retryAfter: defaults to 120 seconds.
+    # - retryMax: defaults to 5 times
+    # - continueOnMissingPermissions: defaults to false
+    #
+    # If at some point in the future, there would be a need, these can still be added.
+    inputs:
+      dirtyLabel:
+        description: "Name of the label which indicates that the branch is dirty."
+        type: string
+        required: false
+        default: "merge conflict"
+      removeOnDirtyLabel:
+        description: "Name of the label which should be removed."
+        type: string
+        required: false
+        default: ''
+      commentOnDirty:
+        description: "Comment to add when the pull request is conflicting. Supports markdown."
+        type: string
+        required: false
+        default: "A merge conflict has been detected for the proposed code changes in this PR. Please resolve the conflict by either rebasing the PR or merging in changes from the base branch."
+      commentOnClean:
+        description: "Comment to add when the pull request is not conflicting anymore. Supports markdown."
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  check-prs:
+    name: Merge conflict check
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Create label if it doesn't exist"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.issues.createLabel({
+                ...context.repo,
+                name: ${{ inputs.dirtyLabel }}
+              });
+            } catch(e) {
+              // Ignore if labels exist already.
+            }
+
+      - name: Check PRs for merge conflicts
+        uses: eps1lon/actions-label-merge-conflict@v3
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          dirtyLabel: ${{ inputs.dirtyLabel }}
+          removeOnDirtyLabel: ${{ inputs.removeOnDirtyLabel }}
+          commentOnDirty: ${{ inputs.commentOnDirty }}
+          commentOnClean: ${{ inputs.commentOnClean }}
