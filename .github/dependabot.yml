@@ -14,5 +14,3 @@ updates:
       prefix: "GH Actions:"
     labels:
       - "chores/QA"
-    reviewers:
-      - "jrfnl"
