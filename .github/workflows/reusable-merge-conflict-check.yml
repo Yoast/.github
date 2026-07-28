@@ -40,12 +40,16 @@ jobs:
     steps:
       - name: "Create label if it doesn't exist"
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          # Passed via the environment, never interpolated into the script, as this is a
+          # caller-controlled input and interpolation would allow script injection.
+          DIRTY_LABEL: ${{ inputs.dirtyLabel }}
         with:
           script: |
             try {
               await github.rest.issues.createLabel({
                 ...context.repo,
-                name: "${{ inputs.dirtyLabel }}"
+                name: process.env.DIRTY_LABEL
               });
             } catch(e) {
               // Ignore if labels exist already.
