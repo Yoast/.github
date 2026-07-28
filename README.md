@@ -32,6 +32,9 @@ The following re-usable workflows are available:
         Defaults to: _"A merge conflict has been detected for the proposed code changes in this PR. Please resolve the conflict by either rebasing the PR or merging in changes from the base branch."_.
     - `commentOnClean`: Optional. Comment to add when the pull request is not conflicting anymore. Supports markdown.
         Defaults to _no comment_.
+    - `minimizeCommentOnClean`: Optional. Whether to mark the `commentOnDirty` comment as resolved (collapsed) once the
+        merge conflict has been resolved. Only comments posted by this workflow which exactly match the `commentOnDirty`
+        text are minimized. Has no effect when `commentOnDirty` is empty. Defaults to 'true'.
 
 
 ## A .github repository with versioning ?
