@@ -33,8 +33,8 @@ The following re-usable workflows are available:
     - `commentOnClean`: Optional. Comment to add when the pull request is not conflicting anymore. Supports markdown.
         Defaults to _no comment_.
     - `minimizeCommentOnClean`: Optional. Whether to mark the `commentOnDirty` comment as resolved (collapsed) once the
-        merge conflict has been resolved. Only comments posted by this workflow which exactly match the `commentOnDirty`
-        text are minimized. Has no effect when `commentOnDirty` is empty. Defaults to 'true'.
+        merge conflict has been resolved. Only comments posted by this workflow whose body matches `commentOnDirty`
+        (ignoring leading/trailing whitespace) are minimized. Has no effect when `commentOnDirty` is empty. Defaults to 'true'.
         Note that changing `commentOnDirty` will leave already posted comments unmatched, so those will stay visible
         instead of being collapsed.
 
