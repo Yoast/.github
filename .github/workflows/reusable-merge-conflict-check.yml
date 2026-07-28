@@ -105,11 +105,14 @@ jobs:
               return;
             }
 
+            // Walk the comments newest first, as the conflict comment is usually one of the
+            // most recent ones. On PRs with a long history this normally finds it in the
+            // first page instead of paging through the entire comment history.
             const query = `
-              query prComments($owner: String!, $repo: String!, $number: Int!, $after: String) {
+              query prComments($owner: String!, $repo: String!, $number: Int!, $before: String) {
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $number) {
-                    comments(first: 100, after: $after) {
+                    comments(last: 100, before: $before) {
                       nodes {
                         id
                         body
@@ -117,8 +120,8 @@ jobs:
                         viewerDidAuthor
                       }
                       pageInfo {
-                        endCursor
-                        hasNextPage
+                        startCursor
+                        hasPreviousPage
                       }
                     }
                   }
@@ -137,14 +140,14 @@ jobs:
             `;
 
             for (const number of cleanPrNumbers) {
-              let after = null;
-              let hasNextPage = true;
+              let before = null;
+              let hasPreviousPage = true;
 
-              while (hasNextPage) {
+              while (hasPreviousPage) {
                 const response = await github.graphql(query, {
                   ...context.repo,
                   number,
-                  after,
+                  before,
                 });
 
                 const { nodes, pageInfo } = response.repository.pullRequest.comments;
@@ -154,8 +157,8 @@ jobs:
                 // the same page forever. Checked before processing so a stuck cursor cannot
                 // cause the same page to be handled twice.
                 const cursorStuck =
-                  pageInfo.hasNextPage &&
-                  (!pageInfo.endCursor || pageInfo.endCursor === after);
+                  pageInfo.hasPreviousPage &&
+                  (!pageInfo.startCursor || pageInfo.startCursor === before);
 
                 if (cursorStuck) {
                   core.warning(
@@ -188,7 +191,7 @@ jobs:
                   }
                 }
 
-                hasNextPage = pageInfo.hasNextPage && !cursorStuck;
-                after = pageInfo.endCursor;
+                hasPreviousPage = pageInfo.hasPreviousPage && !cursorStuck;
+                before = pageInfo.startCursor;
               }
             }
