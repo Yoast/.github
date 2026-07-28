@@ -166,6 +166,10 @@ jobs:
                 // Only minimize this workflow's own, not yet minimized, conflict comments.
                 // Matching on the exact comment body prevents unrelated comments from
                 // being hidden if the bot posted other comments on the same PR.
+                // Note that `viewerDidAuthor` is scoped to the identity behind the token,
+                // which is the default GITHUB_TOKEN (github-actions[bot]) here. Passing a
+                // PAT or app token to this step would widen this to that identity's
+                // comments, so don't set `github-token` without revisiting this filter.
                 const staleComments = nodes.filter(
                   (comment) =>
                     comment.viewerDidAuthor &&

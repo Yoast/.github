@@ -35,6 +35,8 @@ The following re-usable workflows are available:
     - `minimizeCommentOnClean`: Optional. Whether to mark the `commentOnDirty` comment as resolved (collapsed) once the
         merge conflict has been resolved. Only comments posted by this workflow which exactly match the `commentOnDirty`
         text are minimized. Has no effect when `commentOnDirty` is empty. Defaults to 'true'.
+        Note that changing `commentOnDirty` will leave already posted comments unmatched, so those will stay visible
+        instead of being collapsed.
 
 
 ## A .github repository with versioning ?
