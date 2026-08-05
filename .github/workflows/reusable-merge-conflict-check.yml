@@ -31,27 +31,49 @@ on:
         type: string
         required: false
         default: ''
+      minimizeCommentOnClean:
+        description: "Whether to mark the `commentOnDirty` comment as resolved once the merge conflict is resolved."
+        type: boolean
+        required: false
+        default: true
+
+# Default to no permissions at all; the job below opts in to only what it needs.
+permissions: {}
 
 jobs:
   check-prs:
     name: Merge conflict check
 
     runs-on: ubuntu-latest
+
+    # Safety net: the merge conflict check retries for at most ~10 minutes
+    # (retryAfter 120s * retryMax 5), so anything beyond this is a runaway job.
+    timeout-minutes: 20
+
+    permissions:
+      issues: write # Needed to create the dirty label and to add/remove labels on PRs.
+      pull-requests: write # Needed to comment and to mark those comments as resolved.
+
     steps:
       - name: "Create label if it doesn't exist"
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          # Passed via the environment, never interpolated into the script, as this is a
+          # caller-controlled input and interpolation would allow script injection.
+          DIRTY_LABEL: ${{ inputs.dirtyLabel }}
         with:
           script: |
             try {
               await github.rest.issues.createLabel({
                 ...context.repo,
-                name: "${{ inputs.dirtyLabel }}"
+                name: process.env.DIRTY_LABEL
               });
             } catch(e) {
               // Ignore if labels exist already.
             }
 
       - name: Check PRs for merge conflicts
+        id: check
         uses: eps1lon/actions-label-merge-conflict@0273be72a0bbd58fcd71d0d6c02c209b50d1e5e1 # v3.1.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
@@ -59,3 +81,117 @@ jobs:
           removeOnDirtyLabel: ${{ inputs.removeOnDirtyLabel }}
           commentOnDirty: ${{ inputs.commentOnDirty }}
           commentOnClean: ${{ inputs.commentOnClean }}
+
+      - name: "Mark merge conflict comments as resolved for PRs which are no longer conflicting"
+        if: ${{ inputs.minimizeCommentOnClean && inputs.commentOnDirty != '' }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          # Passed via the environment, never interpolated into the script, as these are
+          # caller-controlled inputs and interpolation would allow script injection.
+          DIRTY_STATUSES: ${{ steps.check.outputs.prDirtyStatuses }}
+          COMMENT_ON_DIRTY: ${{ inputs.commentOnDirty }}
+        with:
+          script: |
+            const dirtyStatuses = JSON.parse(process.env.DIRTY_STATUSES || '{}');
+            const commentOnDirty = process.env.COMMENT_ON_DIRTY;
+
+            // Only PRs which the check found to be conflict-free need cleaning up.
+            const cleanPrNumbers = Object.entries(dirtyStatuses)
+              .filter(([, isDirty]) => isDirty === false)
+              .map(([number]) => Number(number));
+
+            if (cleanPrNumbers.length === 0) {
+              core.info('No conflict-free PRs to clean up.');
+              return;
+            }
+
+            // Walk the comments newest first, as the conflict comment is usually one of the
+            // most recent ones. On PRs with a long history this normally finds it in the
+            // first page instead of paging through the entire comment history.
+            const query = `
+              query prComments($owner: String!, $repo: String!, $number: Int!, $before: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    comments(last: 100, before: $before) {
+                      nodes {
+                        id
+                        body
+                        isMinimized
+                        viewerDidAuthor
+                      }
+                      pageInfo {
+                        startCursor
+                        hasPreviousPage
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const mutation = `
+              mutation minimize($id: ID!) {
+                minimizeComment(input: { subjectId: $id, classifier: RESOLVED }) {
+                  minimizedComment {
+                    isMinimized
+                  }
+                }
+              }
+            `;
+
+            for (const number of cleanPrNumbers) {
+              let before = null;
+              let hasPreviousPage = true;
+
+              while (hasPreviousPage) {
+                const response = await github.graphql(query, {
+                  ...context.repo,
+                  number,
+                  before,
+                });
+
+                const { nodes, pageInfo } = response.repository.pullRequest.comments;
+
+                // Guard against a malformed response which claims another page but hands
+                // back no cursor, or the same cursor again. Either would have us re-request
+                // the same page forever. Checked before processing so a stuck cursor cannot
+                // cause the same page to be handled twice.
+                const cursorStuck =
+                  pageInfo.hasPreviousPage &&
+                  (!pageInfo.startCursor || pageInfo.startCursor === before);
+
+                if (cursorStuck) {
+                  core.warning(
+                    `Pagination for PR #${number} did not advance; stopping after this page to avoid an endless loop.`
+                  );
+                }
+
+                // Only minimize this workflow's own, not yet minimized, conflict comments.
+                // Matching on the comment body (after trimming leading/trailing whitespace)
+                // prevents unrelated comments from being hidden if the bot posted other comments on the same PR.
+                // Note that `viewerDidAuthor` is scoped to the identity behind the token,
+                // which is the default GITHUB_TOKEN (github-actions[bot]) here. Passing a
+                // PAT or app token to this step would widen this to that identity's
+                // comments, so don't set `github-token` without revisiting this filter.
+                const staleComments = nodes.filter(
+                  (comment) =>
+                    comment.viewerDidAuthor &&
+                    !comment.isMinimized &&
+                    comment.body.trim() === commentOnDirty.trim()
+                );
+
+                for (const comment of staleComments) {
+                  try {
+                    await github.graphql(mutation, { id: comment.id });
+                    core.info(`Marked comment ${comment.id} on PR #${number} as resolved.`);
+                  } catch (e) {
+                    core.warning(
+                      `Could not minimize comment ${comment.id} on PR #${number}: ${e.message}`
+                    );
+                  }
+                }
+
+                hasPreviousPage = pageInfo.hasPreviousPage && !cursorStuck;
+                before = pageInfo.startCursor;
+              }
+            }
