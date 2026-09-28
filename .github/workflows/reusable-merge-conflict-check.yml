@@ -37,22 +37,21 @@ on:
         required: false
         default: true
 
-# Default to no permissions at all; the job below opts in to only what it needs.
+# Permissions should be configured at the job level.
 permissions: {}
 
 jobs:
   check-prs:
-    name: Merge conflict check
+    permissions:
+      issues: write        # Needed to create the dirty label.
+      pull-requests: write # To add and remove labels and comments on a PR.
 
+    name: Merge conflict check
     runs-on: ubuntu-latest
 
     # Safety net: the merge conflict check retries for at most ~10 minutes
     # (retryAfter 120s * retryMax 5), so anything beyond this is a runaway job.
     timeout-minutes: 20
-
-    permissions:
-      issues: write # Needed to create the dirty label and to add/remove labels on PRs.
-      pull-requests: write # Needed to comment and to mark those comments as resolved.
 
     steps:
       - name: "Create label if it doesn't exist"

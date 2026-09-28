@@ -18,13 +18,17 @@ Aside from the community health files, this repository also offers a number of r
 ### Available re-usable workflows
 
 The following re-usable workflows are available:
-* [`reusable-actionlint.yml`][reusable-actionlint] which runs a [static analysis check][actionlint] on GitHub Actions workflow files only.
+* [`reusable-actionlint.yml`][reusable-actionlint] which runs a [static analysis check][actionlint] on GitHub Actions workflow files only.  
     **Inputs**:
     - `shellcheck`: Optional. Whether to enable shellcheck. Defaults to 'true'.
     - `pyflakes`: Optional. Whether to enable pyflakes. Defaults to 'true'.
     - `args`: Optional. Command line arguments to pass to the actionlint command. Defaults to no arguments.
 
-* [`reusable-merge-conflict-check.yml`][reusable-mergeconflict] to check whether open PRs are in a merge conflict state.
+    **Permissions**:  
+    The `reusable-actionlint` workflow needs the following GH Action permissions - these should be set at "job" level:
+    - `contents: read # To clone the repo.`
+
+* [`reusable-merge-conflict-check.yml`][reusable-mergeconflict] to check whether open PRs are in a merge conflict state.  
     **Inputs**:
     - `dirtyLabel`: Optional. Name of the label which indicates that the branch is dirty. Defaults to 'merge conflict'.
     - `removeOnDirtyLabel`: Optional. Name of the label which should be removed. Defaults to none.
@@ -37,6 +41,11 @@ The following re-usable workflows are available:
         (ignoring leading/trailing whitespace) are minimized. Has no effect when `commentOnDirty` is empty. Defaults to 'true'.
         Note that changing `commentOnDirty` will leave already posted comments unmatched, so those will stay visible
         instead of being collapsed.
+
+    **Permissions**:  
+    The `reusable-merge-conflict-check` workflow needs the following GH Action permissions - these should be set at "job" level:
+    - `issues: write        # Needed to create the dirty label.` (only needed if the `dirtyLabel` may not exist on a repo)
+    - `pull-requests: write # To add and remove labels and comments on a PR.`
 
 
 ## A .github repository with versioning ?
